@@ -1,6 +1,13 @@
-class User:
-    def __init__(self, id_: int, name: str, tg_user_id: int, is_admin: bool):
-        self.id_ = id_
-        self.name = name
-        self.tg_user_id = tg_user_id
-        self.is_admin = is_admin
+from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = 'user'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    tg_user_id = Column(Integer, unique=True)
+    is_admin = Column(Boolean)

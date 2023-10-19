@@ -6,7 +6,7 @@ from bot.buttons import NameOfButton
 from bot.handlers.utils import get_user_existing_or_admin
 from bot.keyboard.reply.main import ReplyKeyboard
 from bot.states import AdminState
-from database.methods import DatabaseInsertMethods, DatabaseGetMethods, DatabaseDeleteMethods
+from database import Database
 
 
 async def admin_start_command(message: Message, bot: AsyncTeleBot):
@@ -38,8 +38,8 @@ async def get_new_user_data(message: Message, bot: AsyncTeleBot):
                 name = ' '.join([message.forward_from.first_name, message.forward_from.last_name])
             tg_user_id = message.forward_from.id
             is_admin = False
-            db_insert = DatabaseInsertMethods()
-            await db_insert.add_user_if_not_exists(name, tg_user_id, is_admin)
+            db = Database()
+            await db.create_user_if_not_exist(name, tg_user_id, is_admin)
             await bot.send_message(message.chat.id, 'Новый пользователь добавлен в систему.\n'
                                                     f'Имя: {name}\n'
                                                     f'Telegram ID: {tg_user_id}')
@@ -47,8 +47,8 @@ async def get_new_user_data(message: Message, bot: AsyncTeleBot):
 
 
 async def delete_user_button(message: Message, bot: AsyncTeleBot):
-    db_get = DatabaseGetMethods()
-    users = await db_get.get_all_users()
+    db = Database()
+    users = await db.get_all_users()
     await bot.send_message(message.chat.id, 'Отправьте Telegram ID пользователя, которого нужно удалить из системы.\n'
                                             '[/cancel - для отмены действия]', reply_markup=types.ReplyKeyboardRemove())
     await bot.send_message(message.chat.id, 'Список пользователей:')
@@ -69,8 +69,8 @@ async def get_tg_id_for_deleting(message: Message, bot: AsyncTeleBot):
             users = data.get('users')
             for user in users:
                 if tg_user_id == user.tg_user_id:
-                    db_delete = DatabaseDeleteMethods()
-                    await db_delete.delete_user_by_id(user.id_)
+                    db = Database()
+                    await db.delete_user_by_id(user.id_)
                     await bot.send_message(message.chat.id, f'Пользователь {user.name} успешно удален!')
                     await bot.delete_state(message.from_user.id, message.chat.id)
                     break

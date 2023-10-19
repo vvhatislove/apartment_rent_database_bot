@@ -1,9 +1,9 @@
-from database.methods.main import DatabaseGetMethods
+from database import Database
 
 
 async def get_user_existing_or_admin(message, bot, check_admin=False):
-    db_get = DatabaseGetMethods()
-    user = await db_get.get_user_by_tg_user_id(message.from_user.id)
+    db = Database()
+    user = await db.get_user_by_tg_user_id(message.from_user.id)
     if user is None:
         await bot.send_message(message.chat.id, 'Ты не зарегистрирован в системе')
         return None
