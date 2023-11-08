@@ -1,3 +1,4 @@
 /.env
 /database/apartment_rent.db
 /venv/
+/doc_images/

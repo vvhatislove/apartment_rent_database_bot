@@ -18,6 +18,9 @@ async def admin_start_command(message: Message, bot: AsyncTeleBot):
 
 
 async def add_new_user_button(message: Message, bot: AsyncTeleBot):
+    user = await get_user_existing_or_admin(message, bot, check_admin=True)
+    if user is None:
+        return
     await bot.set_state(message.from_user.id, AdminState.add_new_user, message.chat.id)
     await bot.send_message(message.chat.id,
                            'Перешлите любое сообщение от пользователя, которого хотите добавить в систему\n'
@@ -47,6 +50,9 @@ async def get_new_user_data(message: Message, bot: AsyncTeleBot):
 
 
 async def delete_user_button(message: Message, bot: AsyncTeleBot):
+    user = await get_user_existing_or_admin(message, bot, check_admin=True)
+    if user is None:
+        return
     db = Database()
     users = await db.get_all_users()
     await bot.send_message(message.chat.id, 'Отправьте Telegram ID пользователя, которого нужно удалить из системы.\n'

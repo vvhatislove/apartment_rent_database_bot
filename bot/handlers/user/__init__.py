@@ -1,1 +1,1 @@
-from .main import register_user_handlers
+from .main import register_user_handlers, register_user_callback_handlers

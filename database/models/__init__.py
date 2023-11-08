@@ -1,1 +1,1 @@
-from .main import User
+from .main import *
