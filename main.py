@@ -10,5 +10,5 @@ if __name__ == '__main__':
     if not os.path.exists('./doc_images'):
         os.mkdir('./doc_images')
     EnvironmentVariable.load_env_vars()
-    asyncio.run(setup_db())
+    setup_db()
     start_bot()
