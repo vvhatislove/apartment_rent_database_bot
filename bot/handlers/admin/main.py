@@ -29,25 +29,45 @@ def add_new_user_button(message: Message, bot: TeleBot):
 
 
 def get_new_user_data(message: Message, bot: TeleBot):
-    print(message)
-    # todo доделать регистрацию пользователей, сделать ручной ввод id
     if message.forward_sender_name is None and message.forward_from is None:
         bot.send_message(message.chat.id, 'Это не пересланное сообщение!')
     else:
-        if message.forward_from.id == message.from_user.id:
-            bot.send_message(message.chat.id, 'Это сообщение принадлежит вам же!')
+        if message.forward_from is None:
+            bot.send_message(message.chat.id,
+                             f'У пользователя {message.forward_sender_name} скорее всего скрыт профиль.\n\n'
+                             f'Попросите его воспользоваться этим ботом @getmyid_bot, чтобы узнать его id\n'
+                             f'После этого отправьте мне его id')
+            bot.register_next_step_handler(message, get_user_id_from_admin, bot, message.forward_sender_name)
         else:
-            if message.forward_from.first_name is None and message.forward_from.last_name is None:
-                name = message.forward_from.username
+            if message.forward_from.id == message.from_user.id:
+                bot.send_message(message.chat.id, 'Это сообщение принадлежит вам же!')
             else:
-                name = ' '.join([message.forward_from.first_name, message.forward_from.last_name])
-            tg_user_id = message.forward_from.id
-            is_admin = False
-            db = Database()
-            db.create_user_if_not_exist(name, tg_user_id, is_admin)
-            bot.send_message(message.chat.id, 'Новый пользователь добавлен в систему.\n'
-                                              f'Имя: {name}\n'
-                                              f'Telegram ID: {tg_user_id}')
+                if message.forward_from.first_name is None and message.forward_from.last_name is None:
+                    name = message.forward_from.username
+                else:
+                    name = ' '.join([message.forward_from.first_name, message.forward_from.last_name])
+                tg_user_id = message.forward_from.id
+                is_admin = False
+                db = Database()
+                db.create_user_if_not_exist(name, tg_user_id, is_admin)
+                bot.send_message(message.chat.id, 'Новый пользователь добавлен в систему.\n'
+                                                  f'Имя: {name}\n'
+                                                  f'Telegram ID: {tg_user_id}')
+
+
+def get_user_id_from_admin(message: Message, bot: TeleBot, name):
+    if message.text.isdigit():
+        tg_user_id = int(message.text)
+        is_admin = False
+        db = Database()
+        db.create_user_if_not_exist(name, tg_user_id, is_admin)
+        bot.send_message(message.chat.id, 'Новый пользователь добавлен в систему.\n'
+                                          f'Имя: {name}\n'
+                                          f'Telegram ID: {tg_user_id}')
+    else:
+        bot.send_message(message.chat.id, 'Это не похоже на Telegram ID.\n\n'
+                                          'Пожалуйста отправьте корректный ID.')
+        bot.register_next_step_handler(message, get_new_user_data, bot, name)
 
 
 def delete_user_button(message: Message, bot: TeleBot):
