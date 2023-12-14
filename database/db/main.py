@@ -1,6 +1,9 @@
-from sqlalchemy import create_engine
+from datetime import datetime
+
+from sqlalchemy import create_engine, or_, and_, func
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker, joinedload
-from database.models.main import User, Apartment, Client, PhoneNumber, Document, Lease
+from database.models.main import User, Apartment, Client, PhoneNumber, Document, Lease, Blacklist
 from sqlalchemy.orm import selectinload
 
 
@@ -12,7 +15,7 @@ class Database:
     def create_tables(self, models):
         with self.engine.connect() as conn:
             for model in models:
-                model.metadata.create_all(conn)
+                model.metadata.create_all(conn, checkfirst=True)
 
     def create_user_if_not_exist(self, name, tg_user_id, is_admin):
         with self.Session() as session:
@@ -49,7 +52,8 @@ class Database:
         with self.Session() as session:
             client = (
                 session.query(Client)
-                .options(selectinload(Client.phone_numbers))
+                .options(joinedload(Client.phone_numbers),
+                         joinedload(Client.documents))
                 .join(PhoneNumber)
                 .filter(PhoneNumber.number == phone_number)
                 .first()
@@ -80,7 +84,7 @@ class Database:
             return new_apartment.id
 
     def add_lease(self, client_id, apartment_id, start_date, end_date, rent_amount, deposit,
-                  additional_details):
+                  additional_details, is_deposit_paid):
         with self.Session() as session:
             new_lease = Lease(
                 client_id=client_id,
@@ -89,7 +93,8 @@ class Database:
                 end_date=end_date,
                 rent_amount=rent_amount,
                 deposit=deposit,
-                additional_details=additional_details
+                additional_details=additional_details,
+                is_deposit_paid=is_deposit_paid
             )
             session.add(new_lease)
             session.commit()
@@ -108,7 +113,7 @@ class Database:
                 .first()
             )
 
-    def search_leases(self, phone_number=None, address=None, start_date=None, end_date=None):
+    def search_leases(self, phone_number=None, address=None, start_date=None, end_date=None, is_deposit_paid=None):
         with self.Session() as session:
             query = session.query(Lease).join(Client).join(Apartment)
 
@@ -118,11 +123,20 @@ class Database:
             if address:
                 query = query.filter(Apartment.address == address)
 
-            if start_date:
+            if start_date is not None:
+                # Учитываем только дату, игнорируя время
+                start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
                 query = query.filter(Lease.start_date >= start_date)
 
             if end_date:
                 query = query.filter(Lease.end_date <= end_date)
+
+            if is_deposit_paid is not None:
+                query = query.filter(Lease.is_deposit_paid == is_deposit_paid)
+                query = query.filter(Lease.deposit > 0.0)
+
+            # Добавлен фильтр для дат, которые больше или равны текущей дате
+            query = query.filter(Lease.start_date >= datetime.utcnow())
 
             leases = (
                 query.options(
@@ -134,3 +148,88 @@ class Database:
             )
 
             return leases
+
+    def update_lease(self, lease_id, **kwargs):
+        with self.Session() as session:
+            try:
+                lease = session.query(Lease).filter_by(id=lease_id).one()
+                for key, value in kwargs.items():
+                    setattr(lease, key, value)
+                session.commit()
+                return True  # Успешное обновление
+            except NoResultFound:
+                return False  # Запись с указанным ID не найдена
+
+    def get_lease_id_by_date_time_range(self, apartment_id, start_datetime, end_datetime):
+        with self.Session() as session:
+            with session.begin():
+                overlapping_lease = session.query(Lease).filter(
+                    Lease.apartment_id == apartment_id,
+                    or_(
+                        and_(Lease.start_date <= start_datetime, Lease.end_date >= start_datetime),
+                        and_(Lease.start_date <= end_datetime, Lease.end_date >= end_datetime),
+                        and_(Lease.start_date >= start_datetime, Lease.end_date <= end_datetime),
+                    )
+                ).first()
+                if overlapping_lease:
+                    return overlapping_lease.id
+                else:
+                    return None
+
+    def get_available_leases_today(self):
+        today = datetime.today()
+        midnight_start = datetime.combine(today, datetime.min.time())
+        midnight_end = datetime.combine(today, datetime.max.time())
+
+        with self.Session() as session:
+            leases = (
+                session.query(Lease)
+                .options(joinedload(Lease.client).joinedload(Client.phone_numbers),
+                         joinedload(Lease.client).joinedload(Client.documents),
+                         joinedload(Lease.apartment))
+                .filter(
+                    Lease.start_date <= midnight_end,
+                    Lease.end_date >= midnight_start,
+                )
+                .all()
+            )
+
+            return leases
+
+    def update_client(self, client_id, name=None, phone_numbers=None, document_filenames=None):
+        with self.Session() as session:
+            client = session.query(Client).get(client_id)
+
+            if client:
+                if name:
+                    client.name = name
+
+                if phone_numbers:
+                    # Предполагается, что phone_numbers - это список номеров телефонов
+                    client.phone_numbers = [PhoneNumber(number=number, client=client) for number in phone_numbers]
+
+                if document_filenames:
+                    # Предполагается, что document_filenames - это список имен файлов документов
+                    client.documents = [Document(filename=filename, client=client) for filename in document_filenames]
+
+                session.commit()
+                return True
+            else:
+                return False
+
+    def add_to_blacklist(self, client_id, comment):
+        with self.Session() as session:
+            blacklist_entry = Blacklist(client_id=client_id, comment=comment)
+            session.add(blacklist_entry)
+            session.commit()
+
+    def remove_from_blacklist(self, client_id):
+        with self.Session() as session:
+            entry = session.query(Blacklist).filter_by(client_id=client_id).first()
+            if entry:
+                session.delete(entry)
+                session.commit()
+
+    def get_blacklist_entry(self, client_id):
+        with self.Session() as session:
+            return session.query(Blacklist).filter_by(client_id=client_id).first()

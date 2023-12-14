@@ -16,6 +16,14 @@ class User(Base):
     is_admin = Column(Boolean)
 
 
+class Blacklist(Base):
+    __tablename__ = 'blacklist'
+    id = Column(Integer, primary_key=True)
+    client_id = Column(Integer, ForeignKey('client.id'))
+    comment = Column(String)
+    client = relationship('Client', back_populates='blacklist')
+
+
 class Client(Base):
     __tablename__ = 'client'
 
@@ -27,6 +35,7 @@ class Client(Base):
 
     # Вспомогательная таблица для хранения фотографий документов клиента
     documents = relationship('Document', back_populates='client')
+    blacklist = relationship('Blacklist', back_populates='client')
 
     # Связь с таблицей аренды
     leases = relationship('Lease', back_populates='client')
@@ -67,6 +76,8 @@ class Lease(Base):
     created_at = Column(DateTime, default=datetime.utcnow)  # Дата создания записи о аренде
     updated_at = Column(DateTime, default=datetime.utcnow,
                         onupdate=datetime.utcnow)  # Дата последнего обновления записи о аренде
+    is_deposit_paid = Column(Boolean, default=False)
+    is_inhabited = Column(Boolean, default=False)
     # Связь с таблицей Client
     client_id = Column(Integer, ForeignKey('client.id'))
     client = relationship('Client', back_populates='leases')

@@ -3,7 +3,15 @@ import time
 import uuid
 from datetime import datetime
 
+from bot.buttons import NameOfButton
 from database import Database
+
+USER_START_MENU = [NameOfButton.ADD_NEW_LEASE_ENTRY,
+                   NameOfButton.MAKE_A_DEPOSIT,
+                   NameOfButton.CHECK_IN,
+                   NameOfButton.BLACKLIST,
+                   NameOfButton.SHOW_CLIENT_DATA,
+                   NameOfButton.FIND_LEASE_ENTRY]
 
 
 def validate_ukrainian_phone_number(phone_number):
@@ -45,8 +53,27 @@ def generate_unique_filename():
 
 
 def check_date_format(date_str):
-    pattern = r'\d{2}\.\d{2}\.\d{4}:\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{4}:\d{2}\.\d{2}'
-    return bool(re.match(pattern, date_str))
+    # Разбиваем строку на компоненты
+    date_components = date_str.split('/')
+
+    # Если компонентов не два, значит формат даты неверен
+    if len(date_components) != 2:
+        return None
+
+    # Если год не существует в строке, добавляем текущий год
+    if len(date_components[0].split('.')) == 2:
+        date_components[0] += f'.{datetime.now().year}'
+
+    try:
+        # Пытаемся создать объект datetime
+        dt = datetime.strptime('/'.join(date_components), "%d.%m.%Y/%H:%M")
+
+        # Проверяем, что дата больше текущей даты
+        return dt
+
+    except ValueError:
+        # Если возникает ошибка, значит формат даты неверен
+        return None
 
 
 def parse_date_values(date_str):
@@ -60,11 +87,12 @@ def parse_date_values(date_str):
 def get_lease_info(lease):
     phone_numbers = ", ".join([phone.number for phone in lease.client.phone_numbers])
     num_documents = len(lease.client.documents) if lease.client.documents else 0
-    return f'👨Клиент: {lease.client.name}\n' \
+    return f'👨Клиент: {lease.client.name if lease.client.name else "Не известно"}\n' \
            f'📱Номера телефонов клиента: {phone_numbers}\n' \
            f'📑Кол-во фотографий документов: {num_documents}\n' \
            f'🏠Адрес сдаваемой квартиры: {lease.apartment.address}\n' \
-           f'📅Период сдачи:{lease.start_date}-{lease.end_date}\n' \
+           f'📅Период сдачи:{lease.start_date.strftime("%d.%m.%Y | %H:%M")} - {lease.end_date.strftime("%d.%m.%Y | %H:%M")}\n' \
            f'💵Сумма арендной платы: {lease.rent_amount}\n' \
            f'💸Сумма залога: {lease.deposit}\n\n' \
-           f'✍️Комментарий: {lease.additional_details}'
+           f'✍️Комментарий: {lease.additional_details}\n' \
+           f'------------------------------------'

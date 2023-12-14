@@ -10,7 +10,8 @@ def setup_db():
         Apartment,
         Client,
         PhoneNumber,
-        Lease
+        Lease,
+        Blacklist
     ])
 
     first_admin_id = EnvironmentVariable.FIRST_ADMIN_ID
